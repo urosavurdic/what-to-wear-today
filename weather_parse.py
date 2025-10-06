@@ -81,8 +81,8 @@ class WeatherParser:
     
     def get_weather_past(self) -> dict:
         """Fetch historical weather (requires Time Machine subscription)"""
-        end = dt + 86400
-        url = f"https://history.openweathermap.org/data/2.5/history/city?lat={self.lat}&lon={self.lon}&type=hour&start={dt}&end={end}&appid={api_key}"
+        end = self.dt + 86400
+        url = f"https://history.openweathermap.org/data/2.5/history/city?lat={self.lat}&lon={self.lon}&type=hour&start={self.dt}&end={end}&appid={api_key}"
 
         try:
             response = requests.get(url)

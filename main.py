@@ -17,7 +17,7 @@ def chat_bot_loop():
         # detect intent
 
         if not is_weather_related(user_input):
-            response = ask_groq("You are a general assistant. Respond naturally to: {user_input}")
+            response = ask_groq(f"You are a general assistant. Respond naturally to: {user_input}")
             print("Chatbot:", response)
         
         else: # weather related topic -> extract context(location/time)
