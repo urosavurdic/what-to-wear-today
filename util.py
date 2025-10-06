@@ -3,12 +3,12 @@ from datetime import datetime
 import requests
 from openai import OpenAI
 import json
-from .weather_parse import WeatherParser, load_api_keys
+from weather_parse import load_api_keys
 
 
 def contextual_data():
-    IPINFO_url = load_api_keys()["ipinfo"]
-    response = requests.get(IPINFO_url)
+    IPINFO_API_KEY = load_api_keys()["ipinfo"]
+    response = requests.get(f"https://ipinfo.io/json?token={IPINFO_API_KEY}")
     loc = response.json()
     data = {
         "timestamp": datetime.now().timestamp(), # Current timestamp in seconds
@@ -40,12 +40,15 @@ def ask_groq(prompt: str) -> str:
     
     completion = client.chat.completions.create(
     model="openai/gpt-oss-20b",
-    messages=[{"role": "user", "content": ""}],
-    temperature=1,
+    messages=[
+            {"role": "system", "content": "You are a helpful weather assistant."},
+            {"role": "user", "content": prompt}
+        ],
+    temperature=0.7,
     max_completion_tokens=8192,
     top_p=1,
     reasoning_effort="medium",
-    stream=True,
+    stream=False,
     stop=None
     )
 
@@ -64,6 +67,7 @@ def safe_json_parse(response_text: str):
 
 
 def extract_context_via_llm(user_input: str):
+    from util import context, ask_groq
     prompt = f"""
     Extract time and location from the context of this user message.
 
