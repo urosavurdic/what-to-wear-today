@@ -1,4 +1,4 @@
-
+import os
 from datetime import datetime
 import requests
 from openai import OpenAI
@@ -7,7 +7,7 @@ from .weather import WeatherParser, load_api_keys
 
 
 def contextual_data():
-    _, _, IPINFO_url = load_api_keys()
+    _, _, IPINFO_url = load_api_keys()["ipinfo"]
     response = requests.get(IPINFO_url)
     loc = response.json()
     data = {
@@ -31,7 +31,7 @@ def is_weather_related(text: str) -> bool:
     return any(k in text_lower for k in keywords)
 
 def ask_groq(prompt: str) -> str:
-    _, GROQ_API_KEY, _ = load_api_keys()
+    _, GROQ_API_KEY, _ = load_api_keys()["groq"]
 
     client = OpenAI(
     api_key=os.environ.get("GROQ_API_KEY"),

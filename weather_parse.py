@@ -7,14 +7,16 @@ def load_api_keys():
     loaded = load_dotenv()
     if not loaded:
         raise Exception("Could not load .env file")
-    else:
-        return {
-            os.getenv("OPENWEATHER_API_KEY"),
-            os.getenv("GROQ_API_KEY"),
-            os.getenv("IPINFO_API_KEY"),
-        }
 
-api_key, _, _ = load_api_keys()
+    keys = {
+
+        'weather': os.getenv("OPENWEATHER_API_KEY"),
+        'groq': os.getenv("GROQ_API_KEY"),
+        'ipinfo': os.getenv("IPINFO_API_KEY"),
+    }
+    return keys
+
+api_key = load_api_keys()["weather"]
 
 class WeatherParser:
     def __init__(self, lat: float, lon: float, dt: int = None):
@@ -42,10 +44,8 @@ class WeatherParser:
         
         if abs(time_diff) < 3600:  # Within 1 hour = current
             return 'now'
-        elif time_diff > 0 and time_diff <= 5 * 86400:  # Future, within 5 days
-            return '5_days'
-        elif time_diff > 5 * 86400:  # Future, beyond 5 days
-            return 'future_long'  # Not supported by free API
+        elif time_diff > 86400:
+            return 'future'
         else:  # Past
             return 'past'
     
@@ -53,42 +53,49 @@ class WeatherParser:
         """Fetch current weather"""
         url = "https://api.openweathermap.org/data/2.5/weather?lat={self.lat}&lon={self.lon}&appid={self.api_key}"
 
-        response = requests.get(url)
-        return response.json()
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching historical weather: {e}")
+            return {}
     
-    def get_weather_5_days(self, units: str = "metric") -> dict:
+    def get_weather_future(self) -> dict:
         """Fetch 5-day forecast (3-hour intervals)"""
-        url = "https://api.openweathermap.org/data/2.5/forecast"
-        params = {
-            "lat": self.lat,
-            "lon": self.lon,
-            "appid": self.api_key,
-            "units": units
-        }
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
+        url = f"https://api.openweathermap.org/data/2.5/forecast/daily?lat={self.lat}&lon={self.lon}&cnt=16&units=metric&appid={self.api_key}"
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            filtered_data = filter_data(data)
+            return filtered_data
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching historical weather: {e}")
+            return {}
     
-    def get_weather_past(self, units: str = "metric") -> dict:
+    def get_weather_past(self) -> dict:
         """Fetch historical weather (requires Time Machine subscription)"""
-        url = "https://api.openweathermap.org/data/3.0/onecall/timemachine"
-        params = {
-            "lat": self.lat,
-            "lon": self.lon,
-            "dt": self.dt,
-            "appid": self.api_key,
-            "units": units
-        }
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
+        end = dt + 86400
+        url = f"https://history.openweathermap.org/data/2.5/history/city?lat={self.lat}&lon={self.lon}&type=hour&start={dt}&end={end}&appid={api_key}"
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching historical weather: {e}")
+            return {}
     
     def get_weather(self) -> dict:
         """Fetch weather based on automatically determined task type"""
         if self.task_type == 'now':
             return self.get_weather_now()
         elif self.task_type == '5_days':
-            return self.get_weather_5_days()
+            return self.get_weather_future()
         elif self.task_type == 'past':
             return self.get_weather_past()
         else:
@@ -98,9 +105,13 @@ class WeatherParser:
         return f"Weather(lat={self.lat}, lon={self.lon}, task_type='{self.task_type}')"
 
 
+def filter_data(data):
+    return data
+
 # Test it:
-dt = int(datetime(2025, 10, 8, 12, 0).timestamp())  # Example past date
+dt = int(datetime(2025, 10, 7, 19, 0).timestamp())  # Example past date
 print(dt)
-w = WeatherParser("8d11b60e3725dc9d8929ae743be16838", 44.8176, 20.4569)
+print(api_key)
+w = WeatherParser(44.8176, 20.4569, dt)
 data = w.get_weather()
 print(data)
