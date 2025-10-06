@@ -1,8 +1,23 @@
 import requests
 from datetime import datetime
+from dotenv import load_dotenv
+import os
+
+def load_api_keys():
+    loaded = load_dotenv()
+    if not loaded:
+        raise Exception("Could not load .env file")
+    else:
+        return {
+            os.getenv("OPENWEATHER_API_KEY"),
+            os.getenv("GROQ_API_KEY"),
+            os.getenv("IPINFO_API_KEY"),
+        }
+
+api_key, _, _ = load_api_keys()
 
 class WeatherParser:
-    def __init__(self, api_key: str, lat: float, lon: float, dt: int = None):
+    def __init__(self, lat: float, lon: float, dt: int = None):
         """
         Initialize with API key and coordinates.
         
