@@ -42,28 +42,31 @@ class WeatherParser:
         """Determine whether to fetch current, forecast, or historical data"""
         time_diff = self.dt - self.current_datetime
         
-        if abs(time_diff) < 3600:  # Within 1 hour = current
+        if abs(time_diff) <= 3600:  # Within 1 hour = current
             return 'now'
-        elif time_diff > 86400:
+        elif time_diff >= (86400*16):
+            raise ValueError("OpenWeather does not contain data that much in the future")
+        elif time_diff > 86400 and time_diff < (86400*16):
             return 'future'
         else:  # Past
             return 'past'
     
     def get_weather_now(self) -> dict:
         """Fetch current weather"""
-        url = "https://api.openweathermap.org/data/2.5/weather?lat={self.lat}&lon={self.lon}&appid={self.api_key}"
+        url = f"https://api.openweathermap.org/data/2.5/weather?lat={self.lat}&lon={self.lon}&units=metric&appid={self.api_key}"
 
         try:
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
-            return data
+            filtered_data = filter_data(data)
+            return filtered_data
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching historical weather: {e}")
+            print(f"Error fetching weather now: {e}")
             return {}
     
     def get_weather_future(self) -> dict:
-        """Fetch 5-day forecast (3-hour intervals)"""
+        """Getting forcast for next 16 days"""
         url = f"https://api.openweathermap.org/data/2.5/forecast/daily?lat={self.lat}&lon={self.lon}&cnt=16&units=metric&appid={self.api_key}"
 
         try:
@@ -85,7 +88,9 @@ class WeatherParser:
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
-            return data
+            filtered_data = filter_data(data)
+            return filtered_data
+        
         except requests.exceptions.RequestException as e:
             print(f"Error fetching historical weather: {e}")
             return {}
@@ -94,7 +99,7 @@ class WeatherParser:
         """Fetch weather based on automatically determined task type"""
         if self.task_type == 'now':
             return self.get_weather_now()
-        elif self.task_type == '5_days':
+        elif self.task_type == 'future':
             return self.get_weather_future()
         elif self.task_type == 'past':
             return self.get_weather_past()
@@ -107,11 +112,13 @@ class WeatherParser:
 
 def filter_data(data):
     return data
-
+"""
 # Test it:
-dt = int(datetime(2025, 10, 7, 19, 0).timestamp())  # Example past date
+dt = int(datetime(2026, 6, 10, 21, 13).timestamp())  # Example past date
+dt = datetime.now().timestamp() + 86402
 print(dt)
 print(api_key)
 w = WeatherParser(44.8176, 20.4569, dt)
 data = w.get_weather()
 print(data)
+"""

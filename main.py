@@ -1,4 +1,4 @@
-from .weather_parse import WeatherParser
+import WeatherParser
 from .util import is_weather_related, ask_groq, extract_context_via_llm, generate_weather_response
 
 def chat_bot_loop():
@@ -42,4 +42,4 @@ def chat_bot_loop():
         
         previous_chat = (previous_chat + f"\nUser: {user_input}\nChatbot: {response}")[-1000:]
 
-
+chat_bot_loop()
