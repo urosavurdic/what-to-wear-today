@@ -18,3 +18,10 @@ def test_non_weather_message(monkeypatch):
     response = ask_groq("Hi!")
 
     assert "hello" in response.lower()
+
+@pytest.fixture(autouse=True)
+def mock_api_keys(monkeypatch):
+    monkeypatch.setattr(
+        "weather_parse.load_api_keys",
+        lambda: {"weather": "dummy", "groq": "dummy", "ipinfo": "dummy"}
+    )
