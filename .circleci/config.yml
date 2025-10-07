@@ -1,0 +1,35 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.12
+    environment:
+      # Dummy API keys here for testing
+      OPENWEATHER_API_KEY: dummy
+      GROQ_API_KEY: dummy
+      IPINFO_API_KEY: dummy
+    steps:
+      - checkout
+
+      # Install dependencies
+      - run:
+          name: Install dependencies
+          command: |
+            python -m venv venv
+            . venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+      # Run tests
+      - run:
+          name: Run tests
+          command: |
+            . venv/bin/activate
+            pytest -v
+
+workflows:
+  version: 2
+  test_workflow:
+    jobs:
+      - test
