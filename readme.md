@@ -32,5 +32,7 @@ This project requires API keys for some services. You need to sign up for these 
 Here is the example of the format of `.env` file:
 
 OPENWEATHER_API_KEY=**************************
+
 GROQ_API_KEY=*************************************
+
 IPINFO_API_KEY =*********************
