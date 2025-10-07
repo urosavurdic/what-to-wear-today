@@ -5,4 +5,4 @@ It consists of couple of files:
  - weather_parse.py - gets relevant data for user from OpenWeatherMap
  - main.py - loops the whole chat, manages prompts
  - util.py - contains helper functions
- - api - contains CLI implementation
+ - api - 
