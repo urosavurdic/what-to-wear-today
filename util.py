@@ -1,73 +1,95 @@
-import os
+import json
 from datetime import datetime
+
 import requests
 from openai import OpenAI
-import json
+
 from weather_parse import load_api_keys
+
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_MODEL = "openai/gpt-oss-20b"
+
+_context = None
+
+WEATHER_KEYWORDS = [
+    "weather", "temperature", "rain", "snow", "sunny", "cloudy", "forecast", "hot",
+    "cold", "warm", "cool", "humidity", "wind", "storm", "umbrella", "jacket", "coat",
+    "outside", "outdoor", "today", "tomorrow", "weekend", "dress", "wear", "bring",
+]
 
 
 def contextual_data():
-    IPINFO_API_KEY = load_api_keys()["ipinfo"]
-    response = requests.get(f"https://ipinfo.io/json?token={IPINFO_API_KEY}")
+    """Looks up the caller's approximate location and the current time."""
+    token = load_api_keys()["ipinfo"]
+    response = requests.get(f"https://ipinfo.io/json?token={token}", timeout=10)
+    response.raise_for_status()
     loc = response.json()
-    data = {
-        "timestamp": datetime.now().timestamp(), # Current timestamp in seconds
-        "weekday": datetime.now().strftime("%A"), # Full weekday name
-        "lat": loc["loc"].split(",")[0],
-        "lon": loc["loc"].split(",")[1],
+    lat, lon = loc["loc"].split(",")
+    return {
+        "timestamp": datetime.now().timestamp(),
+        "weekday": datetime.now().strftime("%A"),
+        "lat": lat,
+        "lon": lon,
     }
-    return data
 
-context = contextual_data()
+
+def get_context():
+    """
+    Returns the cached location/time context, looking it up on first use.
+
+    Deliberately not computed at import time: that fired a network call
+    just to import this module, which broke offline use and the tests.
+    """
+    global _context
+    if _context is None:
+        _context = contextual_data()
+    return _context
+
 
 def is_weather_related(text: str) -> bool:
-    """Detect if user query relates to weather"""
-    keywords = [
-        "weather", "temperature", "rain", "snow", "sunny", "cloudy", "forecast", "hot",
-        "cold", "warm", "cool", "humidity", "wind", "storm", "umbrella", "jacket", "coat",
-        "outside", "outdoor", "today", "tomorrow", "weekend", "dress", "wear", "bring"
-    ]
-    text_lower = text.lower()
-    return any(k in text_lower for k in keywords)
+    """True if the message looks like it is about the weather."""
+    lowered = text.lower()
+    return any(word in lowered for word in WEATHER_KEYWORDS)
+
 
 def ask_groq(prompt: str) -> str:
-    GROQ_API_KEY = load_api_keys()["groq"]
-
-    client = OpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1",
-    )
-    
+    """Sends one prompt to the model and returns the reply text."""
+    client = OpenAI(api_key=load_api_keys()["groq"], base_url=GROQ_BASE_URL)
     completion = client.chat.completions.create(
-    model="openai/gpt-oss-20b",
-    messages=[
+        model=GROQ_MODEL,
+        messages=[
             {"role": "system", "content": "You are a helpful weather assistant."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt},
         ],
-    temperature=0.7,
-    max_completion_tokens=8192,
-    top_p=1,
-    reasoning_effort="medium",
-    stream=False,
-    stop=None
+        temperature=0.7,
+        max_completion_tokens=8192,
+        top_p=1,
+        stream=False,
     )
-
     return completion.choices[0].message.content.strip()
 
-def safe_json_parse(response_text: str):
-    """Extract JSON safely from LLM response"""
+
+def safe_json_parse(response_text: str, fallback=None):
+    """
+    Pulls JSON out of a model reply, tolerating ```json fences.
+
+    Falls back to the current context if the reply is not usable, so a
+    malformed response degrades to 'here' rather than raising.
+    """
     try:
-        if "```json" in response_text:
-            response_text = response_text.split("```json")[1].split("```")[0]
-        elif "```" in response_text:
-            response_text = response_text.split("```")[1].split("```")[0]
-        return json.loads(response_text)
-    except Exception:
-        return context
+        text = response_text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        return json.loads(text)
+    except (ValueError, IndexError):
+        return fallback if fallback is not None else get_context()
 
 
 def extract_context_via_llm(user_input: str):
-    from util import context, ask_groq
+    """Asks the model to pull a place and time out of the message."""
+    context = get_context()
     prompt = f"""
     Extract time and location from the context of this user message.
 
@@ -80,15 +102,15 @@ def extract_context_via_llm(user_input: str):
     {{
         "timestamp": <unix timestamp>,
         "lat": "<latitude or null>",
-        "lon": "<longitude or null>",
+        "lon": "<longitude or null>"
     }}
     """
+    return safe_json_parse(ask_groq(prompt))
 
-    response = ask_groq(prompt)
-    return safe_json_parse(response)
 
 def generate_weather_response(user_input: str, weather_data: dict, previous_chat: str):
-    """LLM generates natural weather-aware answer"""
+    """Turns the forecast into a short, practical answer."""
+    context = get_context()
     prompt = f"""
     You are a friendly assistant that gives helpful, practical weather advice.
 
@@ -97,13 +119,14 @@ def generate_weather_response(user_input: str, weather_data: dict, previous_chat
 
     Context:
     - Latitude: {context.get('lat')}
-    - Lonfitude: {context.get('lon')}
+    - Longitude: {context.get('lon')}
     - Time: {context.get('timestamp')}
     User said: "{user_input}"
 
     Conversation so far:
     {previous_chat if previous_chat else "None"}
 
-    Give a natural, friendly, concise answer: summarize the weather and suggest something practical (what to wear, do, or avoid).
+    Give a natural, friendly, concise answer: summarize the weather and suggest
+    something practical (what to wear, do, or avoid).
     """
-    return ask_groq(prompt)  
+    return ask_groq(prompt)
